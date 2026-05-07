@@ -79,22 +79,49 @@ function isSafeImageBlob(blob) {
 }
 
 function makeId() {
-  if (globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID();
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function showPreview(blob) {
-  if (!isSafeImageBlob(blob)) {
-    preview.classList.add('hidden');
-    preview.removeAttribute('src');
-    return;
+function drawImageToCanvas(canvas, imageBitmap, width, height) {
+  const context = canvas.getContext('2d');
+  if (!context) return;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  canvas.width = width;
+  canvas.height = height;
+  context.drawImage(imageBitmap, 0, 0, width, height);
+}
+
+async function showPreview(blob) {
+  try {
+    if (!isSafeImageBlob(blob)) {
+      preview.classList.add('hidden');
+      const context = preview.getContext('2d');
+      if (context) {
+        context.clearRect(0, 0, preview.width, preview.height);
+      }
+      return;
+    }
+    if (typeof createImageBitmap !== 'function') {
+      setStatus('Image preview is not supported in this browser.', true);
+      return;
+    }
+
+    const imageBitmap = await createImageBitmap(blob);
+    const maxHeight = 260;
+    const ratio = imageBitmap.width / imageBitmap.height || 1;
+    const height = Math.min(imageBitmap.height, maxHeight);
+    const width = Math.max(1, Math.round(height * ratio));
+
+    drawImageToCanvas(preview, imageBitmap, width, height);
+    imageBitmap.close();
+    preview.classList.remove('hidden');
+  } catch (error) {
+    console.error(error);
+    setStatus('Failed to render image preview.', true);
   }
-  const url = URL.createObjectURL(blob);
-  preview.src = url;
-  preview.classList.remove('hidden');
-  preview.onload = () => URL.revokeObjectURL(url);
 }
 
 function resetForm() {
@@ -125,13 +152,19 @@ function createRecordElement(record) {
   button.type = 'button';
   button.className = 'record-item';
 
-  const img = document.createElement('img');
+  const img = document.createElement('canvas');
   if (isSafeImageBlob(record.imageBlob)) {
-    const url = URL.createObjectURL(record.imageBlob);
-    img.src = url;
-    img.onload = () => URL.revokeObjectURL(url);
+    if (typeof createImageBitmap === 'function') {
+      createImageBitmap(record.imageBlob)
+        .then((imageBitmap) => {
+          drawImageToCanvas(img, imageBitmap, 64, 64);
+          imageBitmap.close();
+        })
+        .catch((error) => {
+          console.error(error);
+        });
+    }
   }
-  img.alt = 'Record image';
 
   const meta = document.createElement('div');
   meta.className = 'record-meta';

@@ -127,11 +127,11 @@ button.danger {
   cursor: pointer;
 }
 
-.record-item img {
+.record-item img,
+.record-item canvas {
   width: 64px;
   height: 64px;
   border-radius: 8px;
-  object-fit: cover;
   background: #e5e7eb;
 }
 
