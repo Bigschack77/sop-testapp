@@ -5,9 +5,9 @@ const APP_SHELL = [
   './styles.css',
   './app.js',
   './manifest.json',
+  './vendor/jszip.min.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
 ];
 
 self.addEventListener('install', (event) => {

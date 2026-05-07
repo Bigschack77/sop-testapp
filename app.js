@@ -74,8 +74,19 @@ function getImageExtension(type = '') {
   return 'jpg';
 }
 
+function isSafeImageBlob(blob) {
+  return blob instanceof Blob && typeof blob.type === 'string' && blob.type.startsWith('image/');
+}
+
+function makeId() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function showPreview(blob) {
-  if (!blob) {
+  if (!isSafeImageBlob(blob)) {
     preview.classList.add('hidden');
     preview.removeAttribute('src');
     return;
@@ -99,7 +110,7 @@ function resetForm() {
 
 function setEditingMode(record) {
   editingId = record.id;
-  currentImageBlob = record.imageBlob || null;
+  currentImageBlob = isSafeImageBlob(record.imageBlob) ? record.imageBlob : null;
   noteInput.value = record.text || '';
   formTitle.textContent = 'Edit record';
   saveBtn.textContent = 'Update record';
@@ -115,7 +126,7 @@ function createRecordElement(record) {
   button.className = 'record-item';
 
   const img = document.createElement('img');
-  if (record.imageBlob) {
+  if (isSafeImageBlob(record.imageBlob)) {
     const url = URL.createObjectURL(record.imageBlob);
     img.src = url;
     img.onload = () => URL.revokeObjectURL(url);
@@ -174,11 +185,11 @@ async function handleSubmit(event) {
       updatedAt: now,
     };
   } else {
-    const id = crypto.randomUUID();
+    const id = makeId();
     record = {
       id,
       text,
-      imageBlob: currentImageBlob || null,
+      imageBlob: isSafeImageBlob(currentImageBlob) ? currentImageBlob : null,
       imageType: currentImageBlob?.type || 'image/jpeg',
       createdAt: now,
       updatedAt: now,
@@ -193,7 +204,12 @@ async function handleSubmit(event) {
 
 photoInput.addEventListener('change', () => {
   const [file] = photoInput.files || [];
-  if (!file) return;
+  if (!isSafeImageBlob(file)) {
+    currentImageBlob = null;
+    showPreview(null);
+    setStatus('Please select an image file.', true);
+    return;
+  }
   currentImageBlob = file;
   showPreview(file);
 });
@@ -230,7 +246,7 @@ exportBtn.addEventListener('click', async () => {
 
     const metadata = records.map((record) => {
       let filename = null;
-      if (record.imageBlob && imagesFolder) {
+      if (isSafeImageBlob(record.imageBlob) && imagesFolder) {
         const ext = getImageExtension(record.imageType || record.imageBlob.type || 'image/jpeg');
         filename = `${record.id}.${ext}`;
         imagesFolder.file(filename, record.imageBlob);
@@ -294,13 +310,15 @@ importInput.addEventListener('change', async () => {
       if (item.filename) {
         const imageEntry = zip.file(`images/${item.filename}`) || zip.file(item.filename);
         if (imageEntry) {
-          imageBlob = await imageEntry.async('blob');
+          const raw = await imageEntry.async('uint8array');
+          const imageType = typeof item.imageType === 'string' ? item.imageType : 'application/octet-stream';
+          imageBlob = new Blob([raw], { type: imageType });
         }
       }
       await saveRecord({
         id: item.id,
         text: typeof item.text === 'string' ? item.text : '',
-        imageBlob,
+        imageBlob: isSafeImageBlob(imageBlob) ? imageBlob : null,
         imageType: item.imageType || imageBlob?.type || 'image/jpeg',
         createdAt: item.createdAt || new Date().toISOString(),
         updatedAt: item.updatedAt || new Date().toISOString(),

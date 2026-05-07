@@ -22,7 +22,7 @@ A vanilla mobile-first PWA for saving photo + note records locally and exporting
 Use any static server. Example with Python:
 
 ```bash
-cd /home/runner/work/sop-testapp/sop-testapp
+cd path/to/sop-testapp
 python -m http.server 8080
 ```
 
